@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>더샵 새벽 배송 동선 최적화</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:#f5f4f0;color:#1a1a1a;min-height:100vh;}
+  .header{background:#fff;border-bottom:1px solid #e5e4e0;padding:1rem 1.5rem;display:flex;align-items:center;gap:12px;}
+  .logo{font-size:17px;font-weight:600;color:#1a1a1a;}
+  .logo-sub{font-size:12px;color:#888;margin-top:1px;}
+  .main{max-width:1100px;margin:0 auto;padding:1.5rem;}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem;}
+  .metric{background:#fff;border-radius:10px;border:1px solid #e5e4e0;padding:.875rem 1rem;text-align:center;}
+  .metric-val{font-size:22px;font-weight:600;color:#1a1a1a;}
+  .metric-lbl{font-size:11px;color:#888;margin-top:3px;}
+  .card{background:#fff;border-radius:12px;border:1px solid #e5e4e0;padding:1rem 1.25rem;margin-bottom:1rem;}
+  .card-title{font-size:14px;font-weight:600;margin-bottom:.875rem;color:#1a1a1a;}
+  .sr{display:flex;gap:8px;margin-bottom:.75rem;flex-wrap:wrap;}
+  input,select{flex:1;min-width:120px;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;background:#fff;color:#1a1a1a;outline:none;}
+  input:focus,select:focus{border-color:#534AB7;}
+  button{border:1px solid #ddd;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer;background:#fff;color:#1a1a1a;transition:background .15s;}
+  button:hover{background:#f5f4f0;}
+  button.pri{background:#534AB7;color:#fff;border-color:#534AB7;font-weight:500;}
+  button.pri:hover{background:#3C3489;}
+  .plist{max-height:220px;overflow-y:auto;border:1px solid #e5e4e0;border-radius:8px;margin-bottom:.5rem;}
+  .pi{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0eeea;cursor:pointer;font-size:13px;transition:background .1s;}
+  .pi:last-child{border-bottom:none;}
+  .pi:hover,.pi.sel{background:#f5f4f0;}
+  .chk{width:17px;height:17px;border:1.5px solid #ccc;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;transition:all .15s;}
+  .chk.on{background:#534AB7;border-color:#534AB7;color:#fff;}
+  .br{display:flex;justify-content:space-between;align-items:center;margin-top:.5rem;}
+  .scnt{font-size:12px;color:#888;}
+  .brow{display:flex;gap:6px;}
+  .vcnt-row{display:flex;align-items:center;gap:10px;}
+  .vcnt-row label{font-size:13px;color:#555;}
+  .tabs{display:flex;border-bottom:1px solid #e5e4e0;margin-bottom:1rem;}
+  .tab{padding:9px 18px;font-size:13px;cursor:pointer;color:#888;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;}
+  .tab.on{color:#534AB7;border-bottom-color:#534AB7;font-weight:500;}
+  #mapwrap{border-radius:10px;overflow:hidden;border:1px solid #e5e4e0;height:440px;margin-bottom:1rem;}
+  .cars{display:grid;grid-template-columns:repeat(2,1fr);gap:.875rem;}
+  .cc{background:#fff;border:1px solid #e5e4e0;border-radius:12px;padding:.875rem 1rem;}
+  .ch{display:flex;align-items:center;gap:10px;margin-bottom:.65rem;}
+  .cbadge{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .ct{font-size:14px;font-weight:600;}
+  .cm{font-size:11px;color:#888;margin-top:1px;}
+  .ri{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid #f0eeea;align-items:flex-start;}
+  .ri:last-child{border-bottom:none;}
+  .sn{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;}
+  .rname{font-size:12px;font-weight:600;flex:1;min-width:0;}
+  .raddr{font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rw{font-size:10px;margin-top:2px;}
+  .rtime{font-size:10px;flex-shrink:0;font-weight:600;}
+  .cstat{display:flex;gap:12px;margin-top:.65rem;padding-top:.65rem;border-top:1px solid #f0eeea;}
+  .cs{font-size:11px;color:#888;}
+  .cs span{color:#1a1a1a;font-weight:600;}
+  .zpills{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:.5rem;}
+  .zp{font-size:10px;padding:2px 8px;border-radius:9px;}
+  .abox{border-radius:8px;padding:.6rem 1rem;font-size:12px;margin-bottom:.65rem;}
+  .aw{background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;}
+  .ai{background:#eff6ff;border:1px solid #93c5fd;color:#1e3a5f;}
+  .win-tag{font-size:10px;padding:2px 7px;border-radius:8px;display:inline-block;font-weight:500;}
+  .win-before{background:#fef3c7;color:#78350f;}
+  .win-after{background:#d1fae5;color:#064e3b;}
+  .win-blocked{background:#fee2e2;color:#7f1d1d;}
+  .map-legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:.75rem;}
+  .leg-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#555;}
+  .leg-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+  .leg-sq{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+  @media(max-width:600px){
+    .metrics{grid-template-columns:repeat(2,1fr);}
+    .cars{grid-template-columns:1fr;}
+    .sr{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">더샵 새벽 배송 동선</div>
+    <div class="logo-sub">출발지: 김포시 고촌읍 아라육로57번길 45 &nbsp;|&nbsp; 배송 시간대: 21:00 ~ 02:00</div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="metrics" id="metrics"></div>
+
+  <div class="card">
+    <div class="card-title">오늘 주문 약국 선택</div>
+    <div class="sr">
+      <input type="text" id="sq" placeholder="약국명 또는 주소 검색..." oninput="rf()">
+      <select id="sg" onchange="rf()"><option value="">전체 구군</option></select>
+      <select id="scf" onchange="rf()">
+        <option value="">건물폐쇄 전체</option>
+        <option value="y">폐쇄 약국만</option>
+        <option value="n">제약 없음만</option>
+      </select>
+    </div>
+    <div class="plist" id="plist"></div>
+    <div class="br">
+      <span class="scnt" id="scnt">0개 선택됨</span>
+      <div class="brow">
+        <button onclick="sa()">전체 선택</button>
+        <button onclick="ca()">선택 해제</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:.875rem 1.25rem;">
+    <div class="vcnt-row">
+      <label>오늘 배송 차량 수</label>
+      <select id="vcnt" style="flex:0;min-width:80px;width:80px;">
+        <option value="1">1대</option>
+        <option value="2">2대</option>
+        <option value="3">3대</option>
+        <option value="4" selected>4대</option>
+        <option value="5">5대</option>
+      </select>
+      <button class="pri" onclick="build()" style="margin-left:auto;">동선 생성</button>
+    </div>
+  </div>
+
+  <div id="result" style="display:none;">
+    <div id="alerts"></div>
+
+    <div class="card" style="padding:1rem 1.25rem;">
+      <div class="tabs">
+        <div class="tab on" id="tab-map" onclick="switchTab('map')">지도 보기</div>
+        <div class="tab" id="tab-list" onclick="switchTab('list')">목록 보기</div>
+      </div>
+
+      <div id="view-map">
+        <div class="map-legend" id="legend"></div>
+        <div id="mapwrap"><div id="map" style="width:100%;height:100%;"></div></div>
+      </div>
+
+      <div id="view-list" style="display:none;">
+        <div class="cars" id="cargrid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DEPOT={lat:37.6082,lng:126.7896,name:"김포 고촌 물류지"};
+
+const GU_POS={
+  "강서구":{lat:37.551,lng:126.849},"마포구":{lat:37.566,lng:126.901},"관악구":{lat:37.479,lng:126.952},
+  "영등포구":{lat:37.527,lng:126.896},"종로구":{lat:37.573,lng:126.979},"서대문구":{lat:37.579,lng:126.937},
+  "중랑구":{lat:37.606,lng:127.093},"양천구":{lat:37.527,lng:126.856},"노원구":{lat:37.654,lng:127.056},
+  "동대문구":{lat:37.574,lng:127.040},"성북구":{lat:37.589,lng:127.017},"은평구":{lat:37.601,lng:126.928},
+  "중구":{lat:37.563,lng:126.998},"동작구":{lat:37.511,lng:126.942},"용산구":{lat:37.531,lng:126.990},
+  "구로구":{lat:37.494,lng:126.887},"금천구":{lat:37.457,lng:126.895},"김포시":{lat:37.615,lng:126.716}
+};
+
+const GU_JITTER={};
+function getPos(p){
+  const base=GU_POS[p.g]||{lat:37.56,lng:126.97};
+  if(!GU_JITTER[p.id]) GU_JITTER[p.id]={lat:(Math.random()-.5)*.018,lng:(Math.random()-.5)*.022};
+  return{lat:base.lat+GU_JITTER[p.id].lat,lng:base.lng+GU_JITTER[p.id].lng};
+}
+
+function guDist(gu){const p=GU_POS[gu]||{lat:37.56,lng:126.97};const dy=p.lat-DEPOT.lat,dx=(p.lng-DEPOT.lng)*Math.cos(37.56*Math.PI/180);return Math.sqrt(dy*dy+dx*dx)*111;}
+function guAngle(gu){const p=GU_POS[gu]||{lat:37.56,lng:126.97};return Math.atan2(p.lat-DEPOT.lat,(p.lng-DEPOT.lng)*Math.cos(37.56*Math.PI/180));}
+
+function toMin(hm){
+  if(!hm||hm==="없음") return null;
+  const[h,m]=hm.split(":").map(Number);
+  let v=h*60+m; if(h<12) v+=1440; return v-1260;
+}
+function minToLabel(min){
+  const total=((min+1260)%1440+1440)%1440;
+  const h=Math.floor(total/60)%24,m=total%60;
+  return String(h).padStart(2,'0')+":"+String(m).padStart(2,'0');
+}
+function getWin(p){
+  if(!p.fs||p.fs==="없음") return{type:'free',label:"전 시간 가능"};
+  const s=toMin(p.fs),e=toMin(p.fe);
+  if(s===null||e===null) return{type:'free',label:"전 시간 가능"};
+  if(s>=0&&s<300) return{type:'before',label:`${p.fs} 전 배송 필수`,deadline:s};
+  if(s<0&&e>0&&e<300) return{type:'after',label:`${minToLabel(e)} 이후 배송`,available:e};
+  if(s<=0&&e>=300) return{type:'blocked',label:"배송시간 전체 폐쇄"};
+  return{type:'free',label:"전 시간 가능"};
+}
+
+const CC=[
+  {bg:"#EEEDFE",txt:"#3C3489",hex:"#534AB7",n:"1호차"},
+  {bg:"#E1F5EE",txt:"#085041",hex:"#1D9E75",n:"2호차"},
+  {bg:"#FAECE7",txt:"#712B13",hex:"#D85A30",n:"3호차"},
+  {bg:"#FAEEDA",txt:"#633806",hex:"#BA7517",n:"4호차"},
+  {bg:"#E6F1FB",txt:"#0C447C",hex:"#378ADD",n:"5호차"}
+];
+
+const RAW=[
+  {id:34,n:"신우성약국",addr:"용산구 갈월동",g:"용산구",fs:"없음",fe:"없음"},
+  {id:35,n:"사랑플러스약국",addr:"용산구 남영동",g:"용산구",fs:"없음",fe:"없음"},
+  {id:40,n:"복지약국",addr:"동대문구 답십리동",g:"동대문구",fs:"없음",fe:"없음"},
+  {id:43,n:"태평양약국",addr:"중랑구 망우동",g:"중랑구",fs:"없음",fe:"없음"},
+  {id:52,n:"백경약국",addr:"노원구 상계동",g:"노원구",fs:"없음",fe:"없음"},
+  {id:57,n:"아름솔약국",addr:"구로구 구로동",g:"구로구",fs:"없음",fe:"없음"},
+  {id:142,n:"팜코리아약국",addr:"양천구 목동",g:"양천구",fs:"없음",fe:"없음"},
+  {id:179,n:"성산연세약국",addr:"마포구 중동",g:"마포구",fs:"없음",fe:"없음"},
+  {id:202,n:"온누리세종약국",addr:"동작구 사당동",g:"동작구",fs:"없음",fe:"없음"},
+  {id:280,n:"정성약국",addr:"동작구 대방동",g:"동작구",fs:"없음",fe:"없음"},
+  {id:302,n:"찬솔약국",addr:"동작구 노량진동",g:"동작구",fs:"없음",fe:"없음"},
+  {id:63,n:"종로프라자약국",addr:"용산구 한강로3가",g:"용산구",fs:"23:00",fe:"10:00"},
+  {id:609,n:"발산그랜드약국",addr:"강서구 등촌동",g:"강서구",fs:"없음",fe:"없음"},
+  {id:620,n:"봉화신세계약국",addr:"중랑구 신내동",g:"중랑구",fs:"없음",fe:"없음"},
+  {id:772,n:"아름다운약국",addr:"마포구 아현동",g:"마포구",fs:"없음",fe:"없음"},
+  {id:319,n:"드림약국",addr:"동대문구 신설동",g:"동대문구",fs:"없음",fe:"없음"},
+  {id:345,n:"면목그랜드약국",addr:"중랑구 면목동",g:"중랑구",fs:"없음",fe:"없음"},
+  {id:361,n:"수정약국",addr:"중구 쌍림동",g:"중구",fs:"없음",fe:"없음"},
+  {id:5963,n:"로얄약국",addr:"중랑구 중화동",g:"중랑구",fs:"23:00",fe:"06:00"},
+  {id:15472,n:"선경약국",addr:"영등포구 여의도동",g:"영등포구",fs:"23:00",fe:"06:00"},
+  {id:61212,n:"새싹약국",addr:"동대문구 이문동",g:"동대문구",fs:"23:00",fe:"07:00"},
+  {id:71481,n:"맘스케어약국",addr:"마포구 아현동",g:"마포구",fs:"22:30",fe:"08:00"},
+  {id:82045,n:"동대문연약국",addr:"종로구 종로6가",g:"종로구",fs:"22:00",fe:"04:00"},
+  {id:110397,n:"대학약국",addr:"강서구 화곡동",g:"강서구",fs:"22:00",fe:"07:00"},
+  {id:119387,n:"메디컬수약국",addr:"동작구 흑석동",g:"동작구",fs:"22:00",fe:"08:00"},
+  {id:115400,n:"편한M약국",addr:"관악구 신림동",g:"관악구",fs:"22:00",fe:"08:00"},
+  {id:168875,n:"경성약국",addr:"관악구 신림동",g:"관악구",fs:"18:30",fe:"08:00"},
+  {id:245965,n:"디엠씨진약국",addr:"은평구 수색동",g:"은평구",fs:"23:00",fe:"06:00"},
+  {id:127157,n:"해봄약국",addr:"서대문구 충정로2가",g:"서대문구",fs:"23:00",fe:"04:00"},
+  {id:125499,n:"5층사랑약국",addr:"중구 서소문동",g:"중구",fs:"23:00",fe:"08:00"},
+  {id:212944,n:"정다운약국",addr:"동작구 노량진동",g:"동작구",fs:"23:30",fe:"08:00"},
+  {id:118811,n:"수정약국(개봉)",addr:"구로구 개봉동",g:"구로구",fs:"00:00",fe:"06:00"},
+  {id:128838,n:"한신약국",addr:"서대문구 홍제동",g:"서대문구",fs:"00:00",fe:"04:00"},
+  {id:301889,n:"합정스타약국",addr:"마포구 합정동",g:"마포구",fs:"00:00",fe:"05:00"},
+  {id:123238,n:"신월우리약국",addr:"양천구 신월동",g:"양천구",fs:"20:00",fe:"22:00"}
+];
+
+let sel=new Set();
+let mapObj=null;
+let mapLayers=[];
+
+function winTagHtml(w){
+  if(w.type==='free') return'';
+  if(w.type==='before') return`<span class="win-tag win-before">${w.label}</span>`;
+  if(w.type==='after') return`<span class="win-tag win-after">${w.label}</span>`;
+  if(w.type==='blocked') return`<span class="win-tag win-blocked">${w.label}</span>`;
+  return'';
+}
+
+function rf(){
+  const q=document.getElementById("sq").value.toLowerCase();
+  const g=document.getElementById("sg").value;
+  const c=document.getElementById("scf").value;
+  const f=RAW.filter(p=>{
+    const qm=!q||(p.n.toLowerCase().includes(q)||p.addr.toLowerCase().includes(q));
+    const gm=!g||p.g===g;
+    const hc=p.fs&&p.fs!=="없음";
+    const cm=c===''||(c==='y'&&hc)||(c==='n'&&!hc);
+    return qm&&gm&&cm;
+  });
+  const el=document.getElementById("plist");
+  if(!f.length){el.innerHTML='<div style="text-align:center;padding:1.5rem;font-size:13px;color:#888;">검색 결과 없음</div>';return;}
+  el.innerHTML=f.map(p=>{
+    const on=sel.has(p.id);
+    const w=getWin(p);
+    const hc=p.fs&&p.fs!=="없음";
+    return`<div class="pi${on?' sel':''}" onclick="tog(${p.id})">
+      <div class="chk${on?' on':''}">${on?'✓':''}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${p.n}</div>
+        <div style="font-size:11px;color:#888;">${p.addr}</div>
+      </div>
+      ${hc?winTagHtml(w):''}
+    </div>`;
+  }).join('');
+  document.getElementById("scnt").textContent=sel.size+"개 선택됨";
+}
+
+function tog(id){sel.has(id)?sel.delete(id):sel.add(id);rf();}
+function sa(){
+  const q=document.getElementById("sq").value.toLowerCase();
+  const g=document.getElementById("sg").value;
+  RAW.filter(p=>(!q||(p.n.toLowerCase().includes(q)||p.addr.toLowerCase().includes(q)))&&(!g||p.g===g)).forEach(p=>sel.add(p.id));
+  rf();
+}
+function ca(){sel.clear();rf();}
+
+function switchTab(t){
+  document.getElementById('view-map').style.display=t==='map'?'block':'none';
+  document.getElementById('view-list').style.display=t==='list'?'block':'none';
+  document.getElementById('tab-map').className='tab'+(t==='map'?' on':'');
+  document.getElementById('tab-list').className='tab'+(t==='list'?' on':'');
+  if(t==='map'&&mapObj) setTimeout(()=>mapObj.invalidateSize(),50);
+}
+
+function makeIcon(color,num,isWarn){
+  const bg=isWarn?'#D85A30':color;
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="34" viewBox="0 0 28 34">
+    <path d="M14 0C6.27 0 0 6.27 0 14c0 9.33 14 20 14 20S28 23.33 28 14C28 6.27 21.73 0 14 0z" fill="${bg}"/>
+    <circle cx="14" cy="13" r="8" fill="white" fill-opacity="0.92"/>
+    <text x="14" y="17" text-anchor="middle" font-size="9" font-weight="bold" fill="${bg}">${num}</text>
+  </svg>`;
+  return L.divIcon({html:svg,iconSize:[28,34],iconAnchor:[14,34],popupAnchor:[0,-36],className:''});
+}
+
+function makeDepotIcon(){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+    <rect x="2" y="2" width="30" height="30" rx="7" fill="#1a1a1a"/>
+    <text x="17" y="22" text-anchor="middle" font-size="15" fill="white">★</text>
+  </svg>`;
+  return L.divIcon({html:svg,iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-17],className:''});
+}
+
+function renderMap(cars){
+  if(!mapObj){
+    mapObj=L.map('map',{zoomControl:true}).setView([37.56,126.93],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18
+    }).addTo(mapObj);
+  }
+  mapLayers.forEach(l=>mapObj.removeLayer(l));
+  mapLayers=[];
+
+  const depotM=L.marker([DEPOT.lat,DEPOT.lng],{icon:makeDepotIcon()})
+    .bindPopup('<b>★ 물류 출발지</b><br>김포 고촌읍 아라육로57번길 45');
+  depotM.addTo(mapObj);
+  mapLayers.push(depotM);
+
+  const bounds=[[DEPOT.lat,DEPOT.lng]];
+
+  cars.forEach((c,ci)=>{
+    if(!c.length) return;
+    const cc=CC[ci]||CC[0];
+    const pts=[[DEPOT.lat,DEPOT.lng],...c.map(p=>{
+      const pos=getPos(p);
+      bounds.push([pos.lat,pos.lng]);
+      return[pos.lat,pos.lng];
+    })];
+    const line=L.polyline(pts,{color:cc.hex,weight:2.5,opacity:0.7,dashArray:'7,5'});
+    line.addTo(mapObj);
+    mapLayers.push(line);
+
+    c.forEach((p,i)=>{
+      const pos=getPos(p);
+      const w=getWin(p);
+      const isWarn=w.type!=='free';
+      const marker=L.marker([pos.lat,pos.lng],{icon:makeIcon(cc.hex,i+1,isWarn)});
+      const mins=21*60+i*15;
+      const th=Math.floor(mins/60)%24,tm=mins%60;
+      const et=String(th).padStart(2,'0')+":"+String(tm).padStart(2,'0');
+      marker.bindPopup(
+        `<b>${p.n}</b><br>`+
+        `<span style="font-size:11px;color:#555;">${p.addr}</span><br>`+
+        `<span style="font-size:11px;">${cc.n} ${i+1}번째 &nbsp;|&nbsp; 예상 ${et}</span>`+
+        (w.type!=='free'?`<br><span style="font-size:11px;color:#D85A30;font-weight:500;">${w.label}</span>`:'')
+      );
+      marker.addTo(mapObj);
+      mapLayers.push(marker);
+    });
+  });
+
+  if(bounds.length>1) mapObj.fitBounds(bounds,{padding:[28,28]});
+
+  const legendHtml=cars.map((c,ci)=>{
+    if(!c.length) return'';
+    const cc=CC[ci]||CC[0];
+    return`<div class="leg-item"><div class="leg-dot" style="background:${cc.hex};"></div><span>${cc.n} (${c.length}개소)</span></div>`;
+  }).join('');
+  document.getElementById("legend").innerHTML=
+    `<div class="leg-item"><div class="leg-sq" style="background:#1a1a1a;"></div><span>물류 출발지</span></div>`+
+    legendHtml+
+    `<div class="leg-item"><div class="leg-dot" style="background:#D85A30;"></div><span>시간제약 약국</span></div>`;
+}
+
+function build(){
+  if(!sel.size){alert("약국을 선택해주세요");return;}
+  const vcnt=parseInt(document.getElementById("vcnt").value)||4;
+  const list=RAW.filter(p=>sel.has(p.id));
+
+  const before=list.filter(p=>getWin(p).type==='before').sort((a,b)=>getWin(a).deadline-getWin(b).deadline);
+  const after=list.filter(p=>getWin(p).type==='after').sort((a,b)=>getWin(a).available-getWin(b).available);
+  const blocked=list.filter(p=>getWin(p).type==='blocked');
+  const free=list.filter(p=>getWin(p).type==='free');
+  const constrained=[...before,...after];
+
+  const cars=Array.from({length:vcnt},()=>[]);
+  const freeSort=[...free].sort((a,b)=>guAngle(a.g)-guAngle(b.g));
+  if(freeSort.length){
+    const chunk=Math.ceil(freeSort.length/vcnt);
+    freeSort.forEach((p,i)=>cars[Math.min(Math.floor(i/chunk),vcnt-1)].push(p));
+  }
+  constrained.forEach(p=>{
+    const ang=guAngle(p.g);
+    let best=0,bDist=Infinity;
+    cars.forEach((c,i)=>{
+      const ref=c.length?c.reduce((s,x)=>s+guAngle(x.g),0)/c.length:ang;
+      const d=Math.abs(ang-ref);
+      if(d<bDist){bDist=d;best=i;}
+    });
+    cars[best].unshift(p);
+  });
+  cars.forEach(c=>{
+    const b=c.filter(p=>getWin(p).type==='before').sort((a,b2)=>getWin(a).deadline-getWin(b2).deadline);
+    const a=c.filter(p=>getWin(p).type==='after').sort((a2,b2)=>getWin(a2).available-getWin(b2).available);
+    const n=c.filter(p=>getWin(p).type==='free').sort((a2,b2)=>guDist(a2.g)-guDist(b2.g));
+    c.length=0;c.push(...b,...a,...n);
+  });
+
+  let alertHtml='';
+  if(blocked.length) alertHtml+=`<div class="abox aw">배송시간 전체 폐쇄 — 배송 불가 ${blocked.length}개: ${blocked.map(p=>p.n).join(', ')}</div>`;
+  if(before.length) alertHtml+=`<div class="abox ai">마감 전 배송 필수 ${before.length}개 → 각 차량 앞순위 배정</div>`;
+  if(after.length) alertHtml+=`<div class="abox ai">폐쇄 종료 후 배송 ${after.length}개 → 각 차량 앞순위 배정</div>`;
+  document.getElementById("alerts").innerHTML=alertHtml;
+
+  const cols=vcnt===1?'1fr':vcnt<=2?'1fr 1fr':vcnt===3?'repeat(3,1fr)':'repeat(2,1fr)';
+  document.getElementById("cargrid").style.gridTemplateColumns=cols;
+  document.getElementById("cargrid").innerHTML=cars.map((c,ci)=>{
+    const cc=CC[ci]||CC[0];
+    if(!c.length) return`<div class="cc"><div class="ch"><div class="cbadge" style="background:${cc.bg};color:${cc.txt};">0</div><div><div class="ct">${cc.n}</div><div class="cm">배정 없음</div></div></div></div>`;
+    const zones=[...new Set(c.map(p=>p.g))];
+    const warnCnt=c.filter(p=>getWin(p).type!=='free').length;
+    const estEnd=21*60+c.length*15;
+    const eh=Math.floor(estEnd/60)%24,em=estEnd%60;
+    const minDist=Math.round(Math.min(...zones.map(g=>guDist(g))));
+    const rows=c.map((p,i)=>{
+      const w=getWin(p);
+      const mins=21*60+i*15;
+      const th=Math.floor(mins/60)%24,tm=mins%60;
+      const et=String(th).padStart(2,'0')+":"+String(tm).padStart(2,'0');
+      return`<div class="ri">
+        <div class="sn" style="background:${cc.bg};color:${cc.txt};">${i+1}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="rname">${p.n}</div>
+          <div class="raddr">${p.addr}</div>
+          ${w.type!=='free'?`<div class="rw">${winTagHtml(w)}</div>`:''}
+        </div>
+        <span class="rtime" style="color:${cc.txt};">${et}</span>
+      </div>`;
+    }).join('');
+    return`<div class="cc" style="border-color:${cc.hex}40;">
+      <div class="ch">
+        <div class="cbadge" style="background:${cc.bg};color:${cc.txt};">${c.length}</div>
+        <div><div class="ct">${cc.n}</div><div class="cm">거점까지 최근 약 ${minDist}km &nbsp;·&nbsp; 시간제약 ${warnCnt}개</div></div>
+      </div>
+      <div class="zpills">${zones.map(g=>`<span class="zp" style="background:${cc.bg};color:${cc.txt};">${g}</span>`).join('')}</div>
+      <div style="max-height:300px;overflow-y:auto;">${rows}</div>
+      <div class="cstat">
+        <div class="cs">출발 <span>21:00</span></div>
+        <div class="cs">예상완료 <span>${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}</span></div>
+        <div class="cs">총 <span>${c.length}개소</span></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById("result").style.display='block';
+  switchTab('map');
+  setTimeout(()=>renderMap(cars),120);
+  document.getElementById("result").scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+(function init(){
+  const gus=[...new Set(RAW.map(p=>p.g))].sort();
+  const sg=document.getElementById("sg");
+  gus.forEach(g=>{const o=document.createElement("option");o.value=g;o.textContent=g;sg.appendChild(o);});
+  const wc=RAW.filter(p=>p.fs&&p.fs!=="없음").length;
+  document.getElementById("metrics").innerHTML=`
+    <div class="metric"><div class="metric-val">${RAW.length}</div><div class="metric-lbl">전체 약국</div></div>
+    <div class="metric"><div class="metric-val">${wc}</div><div class="metric-lbl">건물폐쇄 약국</div></div>
+    <div class="metric"><div class="metric-val">1~5대</div><div class="metric-lbl">배송 차량 (가변)</div></div>
+    <div class="metric"><div class="metric-val">21~02시</div><div class="metric-lbl">배송 시간대</div></div>
+  `;
+  rf();
+})();
+</script>
+</body>
+</html>
